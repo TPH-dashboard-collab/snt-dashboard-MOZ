@@ -1,26 +1,22 @@
+# Library imports
 box::use(
   bslib,
   config,
-  data.table[setnames],
   logger[
     log_debug,
     log_info,
   ],
   shiny,
-  shinyWidgets,
   shinyjs,
-  toml,
-  tools,
 )
 
+# Module imports
 # fmt: skip
 box::use(
   app/logic/core/logging[log_ns_fn, setup_logging],
   app/logic/core/panel_config,
   app/logic/core/startup[init_data_connection, load_country_map],
   app/logic/data/variablesManager[Variables],
-  ## app/view/panel_2,
-  ## app/view/panel_3,
   app/view/panel_about,
   app/view/panel_assumptions,
   app/view/panel_scenario_explorer,
@@ -28,9 +24,14 @@ box::use(
 
 # Global setup -----------------------------------------------------------------
 
-shiny::enableBookmarking(store = "url")
+
+# Inform data.table that we are using it without importing it wholly.
 .datatable.aware <- TRUE # nolint
 
+# Initialize log output. Our logging system allows the filtering of log output
+# via the SNT_DEBUG env var. For exampe, setting it to
+# SNT_DEBUG=module:my_function, will filter the logs to output from
+# module:my_function only.
 setup_logging()
 
 log_info(
@@ -38,7 +39,8 @@ log_info(
   namespace = log_ns_fn("main")
 )
 
-# Data connection
+# Data connection is initialized automatically and depends on the settings in
+# config.yml.
 data_con <- init_data_connection(log_ns = "main")
 
 shiny$onStop(function() {
@@ -46,16 +48,10 @@ shiny$onStop(function() {
   data_con$shutdown(log_ns = "main")
 })
 
-# Country map
+# Load country map shapefiles from app/data/shapefiles
 country_map <- load_country_map(log_ns = "main")
 
-# Replace admin_1 values with Region_Nam, they are prettier
-if ("admin_1" %in% names(country_map)) {
-  country_map[, admin_1 := NULL]
-}
-setnames(country_map, old = "Region_Nam", new = "admin_1")
-
-# Panel Config
+# Panel configuration. Mainl parsed form config.yml.
 panel_2_config <- panel_config$PanelConfig$new(
   panel_name = "panel_2",
   title = "Impact of Core National Scenarios",
@@ -71,6 +67,9 @@ panel_3_config <- panel_config$PanelConfig$new(
   get_scenarios = function(variables) c("custom"),
   log_ns = "main"
 )
+
+# Below this comment can be any other code which needs to run before the app
+# starts, like in global.R.
 
 # Main UI/Server ---------------------------------------------------------------
 
@@ -91,14 +90,8 @@ ui <- function(id) {
           class = "btn btn-outline-primary btn-sm",
           style = "margin-left: 15px;"
         ),
-        # REVIEW 2025-12-08: The restoration via bookmarking needs some more
-        #   work, e.g. hook it up with the restoration process from TOML files.
-        #   Due to time constraints, this feature will be left out for now as it
-        #   is easy enough to share the TOML file.
-        ## shiny$bookmarkButton(
-        ##   label = "Share link",
-        ##   class = "btn btn-outline-primary btn-sm w-100 mb-2"
-        ## ),
+        # TODO: Session saving and restoration is currently fully disabled.
+        # Thus, the buttons below do not do anything.
         shiny$downloadButton(
           ns("save_state"),
           "Save Session",
@@ -125,9 +118,6 @@ ui <- function(id) {
       ns("panel_3"),
       panel_config = panel_3_config
     ),
-    # DEPRECATED: Remove after validated
-    ## panel_2$ui(ns("panel_2_old")),
-    ## panel_3$ui(ns("panel_3_old")),
     panel_assumptions$ui(ns("panel_assumptions"))
   )
 }
@@ -170,22 +160,6 @@ server <- function(id) {
       country_map = country_map,
       log_ns = "main"
     )
-
-    # DEPRECATED: Remove after validated
-    ## panel_2$server(
-    ##   id = "panel_2_old",
-    ##   variables = Variables_panel_2,
-    ##   country_map = country_map,
-    ##   log_ns = "main"
-    ## )
-
-    # DEPRECATED: Remove after validated
-    ## panel_3$server(
-    ##   id = "panel_3_old",
-    ##   variables = Variables_panel_3,
-    ##   country_map = country_map,
-    ##   log_ns = "main"
-    ## )
 
     panel_assumptions$server(id = "panel_assumptions")
   })
