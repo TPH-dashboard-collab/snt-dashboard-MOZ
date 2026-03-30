@@ -1,0 +1,25 @@
+image: rocker/verse:latest
+
+stages:
+    - test
+
+variables:
+  RENV_PATHS_ROOT: ${CI_PROJECT_DIR}/renv
+  DOWNLOAD_STATIC_LIBV8: 1
+
+cache:
+  key: ${CI_PROJECT_NAME}
+  paths:
+    - renv/
+
+default:
+  before_script:
+    - apt update
+    - apt install --yes gdal-bin libgdal-dev libudunits2-dev
+    - Rscript -e "if (!requireNamespace('renv', quietly = TRUE)) install.packages('renv')"
+    - Rscript -e "Sys.setenv(\"PROJ_LIB\"=\"\"); renv::restore()"
+
+test:
+  stage: test
+  script:
+    - Rscript -e "rhino::test_r()"

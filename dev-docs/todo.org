@@ -1,0 +1,7 @@
+#+title: Todo
+
+* Make exclusivity configurable by the user
+
+* Make intervention priorities configurable by the user
+
+* Add function to detect mutual exclusive and linked interventions
