@@ -166,16 +166,7 @@ ui <- function(id) {
     # Main content tabs
     bslib$navset_card_pill(
       id = ns("main_tabs"),
-      title = "Intervention Prioritization",
-      # Overview tab
-      bslib$nav_panel(
-        "Overview",
-        bslib$card(
-          full_screen = TRUE,
-          bslib$card_header(shiny$uiOutput(ns("home_chart_title"))),
-          shiny$uiOutput(ns("plot_home_top_container"))
-        )
-      ),
+      title = "District Prioritization by Intervention",
       # Explore tab
       bslib$nav_panel(
         "Explore",
@@ -193,31 +184,15 @@ ui <- function(id) {
             shiny$uiOutput(ns("plot_ranking_container"))
           )
         )
-      #   bslib$accordion(
-      #     id = ns("data_accordion"),
-      #     open = FALSE,
-      #     bslib$accordion_panel(
-      #       "View Data Table",
-      #       DTOutput(ns("table_explore"))
-      #     )
-      #   )
-      # ),
-      # # Data tab
-      # bslib$nav_panel(
-      #   "Data",
-      #   shiny$uiOutput(ns("data_plan_label")),
-      #   bslib$navset_card_tab(
-      #     id = ns("data_tabs"),
-      #     title = "Full Data",
-      #     bslib$nav_panel(
-      #       "Rankings",
-      #       DTOutput(ns("table_ranks_full"))
-      #     ),
-      #     bslib$nav_panel(
-      #       "All Impacts",
-      #       DTOutput(ns("table_impacts_full"))
-      #     )
-        # )
+      ),
+      # Overview tab
+      bslib$nav_panel(
+        "Overview",
+        bslib$card(
+          full_screen = TRUE,
+          bslib$card_header(shiny$uiOutput(ns("home_chart_title"))),
+          shiny$uiOutput(ns("plot_home_top_container"))
+        )
       )
     )
   )
@@ -1357,14 +1332,13 @@ server <- function(
         addProviderTiles(providers$CartoDB.Positron) |>
         addPolygons(
           fillColor = ~ pal(map_data[[rc]]),
-          weight = 2,
-          opacity = 1,
-          color = "white",
-          fillOpacity = 0.75,
+          fillOpacity = 0.7,
+          color = "black",
+          weight = 1,
           highlightOptions = highlightOptions(
-            weight = 3,
-            color = "#444",
-            fillOpacity = 0.95,
+            weight = 5,
+            color = "#666",
+            fillOpacity = 0.7,
             bringToFront = TRUE
           ),
           label = labels,

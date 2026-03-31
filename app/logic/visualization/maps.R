@@ -277,13 +277,13 @@ add_strata_map <- function(geo_data,
     clearControls() |>
     addPolygons(
       fillColor = color_pal(geo_data[[risk_col]]),
-      fillOpacity = 0.8,
-      color = "white",
+      fillOpacity = 0.7,
+      color = "black",
       weight = 1,
       highlightOptions = highlightOptions(
-        weight = 3,
+        weight = 5,
         color = "#666",
-        fillOpacity = 0.8,
+        fillOpacity = 0.7,
         bringToFront = TRUE
       ),
       label = labels,

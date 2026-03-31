@@ -925,15 +925,16 @@ server <- function(
         addProviderTiles(providers$CartoDB.PositronNoLabels) |>
         addPolygons(
           fillColor = ~ pal(final_plan),
+          fillOpacity = 0.7,
+          color = "black",
           weight = 1,
-          color = "white",
-          fillOpacity = 0.8,
-          label = ~disp_label,
           highlightOptions = highlightOptions(
-            weight = 3,
+            weight = 5,
             color = "#666",
+            fillOpacity = 0.7,
             bringToFront = TRUE
-          )
+          ),
+          label = ~disp_label
         ) |>
         addLegend(
           pal = pal,
