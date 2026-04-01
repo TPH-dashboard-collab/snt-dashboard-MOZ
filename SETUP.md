@@ -12,7 +12,7 @@ cd snt-dashboard-newcountry
 # 2. Change the origin to the new country repo
 git remote rename origin shared
 git remote add origin git@gitlab.com:org/snt-dashboard-newcountry.git
-git push -u origin main
+git push -u origin master
 
 # 3. Create country-specific files from examples
 cp config.example.yml config.yml
@@ -25,7 +25,7 @@ cp app/main.example.R app/main.R
 # 5. Commit country-specific files
 git add config.yml app/main.R
 git commit -m "feat: Add country configuration for <Country>"
-git push origin main
+git push origin master
 
 # 6. Deliver the database (out-of-band, not via git)
 #    Place app/data/input_data.sqlite
@@ -35,7 +35,7 @@ git push origin main
 
 ```bash
 git fetch shared
-git merge shared/main
+git merge shared/master
 # Only files that exist in BOTH repos can conflict.
 # config.yml and app/main.R are country-only, so they are never touched.
 ```

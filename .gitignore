@@ -69,3 +69,5 @@ repomix-output.xml
 app/data/input_data.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+/README.md
