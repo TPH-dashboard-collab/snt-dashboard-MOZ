@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - master
   # Run on any opened pull request
   pull_request:
   # Run manually via GitHub Actions website
@@ -22,6 +23,13 @@ jobs:
         run: |
           packages=(
             # List each package on a separate line.
+            cmake
+            gdal-bin
+            libcurl4-openssl-dev
+            libgdal-dev
+            libnode-dev
+            libudunits2-dev
+            pandoc
           )
           sudo apt-get update
           sudo apt-get install --yes "${packages[@]}"

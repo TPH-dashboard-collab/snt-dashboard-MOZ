@@ -217,7 +217,9 @@ DataConnectionSQLite <- R6Class(
         "columns must be a string or vector of strings" = qtest(columns, "S+")
       )
       stopifnot("filters must be a list" = qtest(filters, "l*"))
-      stopifnot("intervention_combos must be a list" = is.list(intervention_combos))
+      stopifnot(
+        "intervention_combos must be a list" = is.list(intervention_combos)
+      )
       stopifnot(
         "conversion_rules must be a non-empty list" = qtest(
           conversion_rules,
@@ -264,7 +266,10 @@ DataConnectionSQLite <- R6Class(
         # Combine conditions
         where_parts <- character(0)
         if (length(standard_conditions) > 0) {
-          where_parts <- c(where_parts, paste(standard_conditions, collapse = " AND "))
+          where_parts <- c(
+            where_parts,
+            paste(standard_conditions, collapse = " AND ")
+          )
         }
         if (nchar(combo_clause) > 0) {
           where_parts <- c(where_parts, combo_clause)
@@ -484,8 +489,8 @@ DataConnectionSQLite <- R6Class(
 
     #' @description Retrieve pre-aggregated district-level summaries for the
     #'   Economic Evaluation module. Performs full aggregation in SQLite,
-    #'   collapsing all year and age_group dimensions (one row per scenario ×
-    #'   district × EIR_CI).
+    #'   collapsing year, age_group, and seed dimensions (one row per
+    #'   scenario × district × EIR_CI).
     #'
     #' @param intervention_cols Character vector of deployed_int_* column names
     #'   (e.g. c("deployed_int_CM", "deployed_int_ICCM", ...)).
@@ -496,9 +501,9 @@ DataConnectionSQLite <- R6Class(
     #' @param ... Additional arguments (must include log_ns for logging).
     #'
     #' @return A data.table grouped by (scenario_name, plan, admin_2, EIR_CI)
-    #'   with columns: vol_* (total intervention volumes across the year range,
-    #'   for cost = vol * unit_cost / n_years), cum_cases_end, cum_cases_start
-    #'   (for averted_period = end - start), and deployed_int_* (flags).
+    #'   with columns: {int}_pop (mean-over-seeds intervention population
+    #'   covered across the year range), cum_nUncomp_end, cum_nUncomp_start
+    #'   (cumulative cases at period boundaries), and deployed_int_* (flags).
     get_ee_district_summaries = function(
       intervention_cols,
       age_groups,
@@ -514,75 +519,61 @@ DataConnectionSQLite <- R6Class(
       )
       con <- self$pool
 
-      # Derive intervention short names from deployed_int_* column names
       int_names <- sub("^deployed_int_", "", intervention_cols)
+      year_baseline <- year_start - 1L
 
-      n_years <- year_end - year_start + 1L
+      # ── Dynamic SQL fragments for interventions ──
+      # These are the only parts that vary with the intervention set.
 
-      # Cost sub-query: volumes across the evaluation year range. SUM across all
-      # rows in year range, then divide by n_years to get the average yearly
-      # cost (matching: mean(sum(cost_per_year))).
-      vol_exprs <- vapply(
-        int_names,
-        function(int) {
-          dep <- paste0("deployed_int_", int)
-          cov <- paste0("coverage_int_", int)
+      # Inner query (per seed): population covered per intervention.
+      # Restricted to year_start..year_end via CASE because the WHERE
+      # also includes year_baseline for the cases snapshot.
+      inner_pop_lines <- vapply(
+        seq_along(int_names),
+        function(i) {
+          pop_name <- paste0(tolower(int_names[i]), "_pop")
+          dep <- intervention_cols[i]
+          cov <- paste0("coverage_int_", int_names[i])
           paste0(
-            "SUM(nHost * ",
+            "    SUM(CASE WHEN year >= ",
+            year_start,
+            " THEN nHost * ",
             dep,
             " * ",
             cov,
-            ") / ",
-            n_years,
-            ".0 AS vol_",
-            int
+            " ELSE 0 END) AS ",
+            pop_name
           )
         },
         character(1)
       )
 
-      flag_exprs <- vapply(
+      inner_flag_lines <- vapply(
         intervention_cols,
-        function(col) paste0("MAX(", col, ") AS ", col),
+        function(col) paste0("    MAX(", col, ") AS ", col),
         character(1)
       )
 
-      # Cases: AVG(cum_nUncomp) at year_end and year_start - 1. Use conditional
-      # aggregation to get both in one pass.
-      cases_end_expr <- glue_sql(
-        "AVG(CASE WHEN year = {year_end} THEN cum_nUncomp END) AS cum_cases_end",
-        .con = con
-      )
-      cases_start_expr <- glue_sql(
-        paste0(
-          "COALESCE(AVG(CASE WHEN year = {year_start - 1L} THEN cum_nUncomp END), 0)",
-          " AS cum_cases_start"
-        ),
-        .con = con
+      # Outer query (average across seeds)
+      outer_pop_lines <- vapply(
+        int_names,
+        function(int) {
+          pop_name <- paste0(tolower(int), "_pop")
+          paste0("  AVG(", pop_name, ") AS ", pop_name)
+        },
+        character(1)
       )
 
-      select_cols <- paste(
-        c(
-          "scenario_name",
-          "plan",
-          "admin_2",
-          "EIR_CI",
-          vol_exprs,
-          cases_end_expr,
-          cases_start_expr,
-          flag_exprs
-        ),
-        collapse = ",\n  "
+      outer_flag_lines <- vapply(
+        intervention_cols,
+        function(col) paste0("  MAX(", col, ") AS ", col),
+        character(1)
       )
 
-      group_cols <- "scenario_name, plan, admin_2, EIR_CI"
-
-      # WHERE: age_group filter + year range (need year_start-1 for cases
-      # baseline) + optional extras
-      year_min <- year_start - 1L
+      # ── WHERE clause ──
       all_filters <- c(list(age_group = age_groups), filters)
       conditions <- glue_sql(
-        "year BETWEEN {year_min} AND {year_end}",
+        "year BETWEEN {year_baseline} AND {year_end}",
         .con = con
       )
       for (col in names(all_filters)) {
@@ -592,17 +583,58 @@ DataConnectionSQLite <- R6Class(
           glue_sql("{`col`} IN ({values*})", .con = con)
         )
       }
-      where_clause <- paste("WHERE", paste(conditions, collapse = " AND "))
+      where_conditions <- paste(conditions, collapse = "\n    AND ")
 
+      # ── Assemble full query ──
+      # Kept as close to readable SQL as possible; only the
+      # intervention-specific lines and filter values are injected.
       query <- paste0(
-        "SELECT\n  ",
-        select_cols,
+        # -- per_seed: one row per (scenario, plan, district, EIR, seed)
+        "WITH per_seed AS (\n",
+        "  SELECT\n",
+        "    scenario_name,\n",
+        "    plan,\n",
+        "    admin_2,\n",
+        "    EIR_CI,\n",
+        "    seed,\n",
+        #
+        # -- intervention populations (year_start..year_end only)
+        paste(inner_pop_lines, collapse = ",\n"),
+        ",\n",
+        #
+        # -- cumulative cases at period boundaries
+        "    AVG(CASE WHEN year = ",
+        year_end,
+        " THEN cum_nUncomp END) AS cum_nUncomp_end,\n",
+        "    COALESCE(AVG(CASE WHEN year = ",
+        year_baseline,
+        " THEN cum_nUncomp END), 0) AS cum_nUncomp_start,\n",
+        #
+        # -- intervention flags (binary 0/1 → preserved via MAX)
+        paste(inner_flag_lines, collapse = ",\n"),
         "\n",
-        "FROM data\n",
-        where_clause,
+        #
+        "  FROM data\n",
+        "  WHERE ",
+        where_conditions,
         "\n",
-        "GROUP BY ",
-        group_cols
+        "  GROUP BY scenario_name, plan, admin_2, EIR_CI, seed\n",
+        ")\n",
+        #
+        # -- Outer: average across seeds
+        "SELECT\n",
+        "  scenario_name,\n",
+        "  plan,\n",
+        "  admin_2,\n",
+        "  EIR_CI,\n",
+        paste(outer_pop_lines, collapse = ",\n"),
+        ",\n",
+        "  AVG(cum_nUncomp_end) AS cum_nUncomp_end,\n",
+        "  AVG(cum_nUncomp_start) AS cum_nUncomp_start,\n",
+        paste(outer_flag_lines, collapse = ",\n"),
+        "\n",
+        "FROM per_seed\n",
+        "GROUP BY scenario_name, plan, admin_2, EIR_CI"
       )
 
       log_debug(
@@ -778,7 +810,7 @@ SELECT DISTINCT scenario_name, admin_1, admin_2, risk_stratum, age_group, year,
       )$count
 
       # Expected number of indexes
-      expected_indexes <- 9
+      expected_indexes <- 11
 
       if (existing_indexes == expected_indexes) {
         log_info(
@@ -858,6 +890,23 @@ SELECT DISTINCT scenario_name, admin_1, admin_2, risk_stratum, age_group, year,
          ON data(admin_1, admin_2);"
           )
           log_debug("Created idx_admin_combo", namespace = log_ns_fn(log_ns))
+
+          dbExecute(
+            con,
+            "CREATE INDEX IF NOT EXISTS idx_ee_summary
+         ON data(age_group, year, scenario_name, plan, admin_2, EIR_CI, seed);"
+          )
+          log_debug("Created idx_ee_summary", namespace = log_ns_fn(log_ns))
+
+          dbExecute(
+            con,
+            "CREATE INDEX IF NOT EXISTS idx_counterfactual
+         ON data(plan, age_group, admin_2);"
+          )
+          log_debug(
+            "Created idx_counterfactual",
+            namespace = log_ns_fn(log_ns)
+          )
 
           # Update query planner statistics
           log_debug(

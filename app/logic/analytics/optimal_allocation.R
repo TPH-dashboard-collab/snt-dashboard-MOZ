@@ -8,7 +8,7 @@ box::use(
 
 # fmt: skip
 box::use(
-  app/logic/visualization/formatters[format_number],
+  app/logic/visualization/formatters[format_large_number],
 )
 
 # TODO: Break up file:
@@ -204,8 +204,8 @@ classify_district <- function(opt_combo, ref_combo) {
 #'
 #' @param data data.table. Pre-aggregated output from
 #'   `get_ee_district_summaries()`, with columns: scenario_name, plan, admin_2,
-#'   EIR_CI, vol_* (average yearly intervention volume per intervention),
-#'   cum_cases_end, cum_cases_start.
+#'   EIR_CI, {int}_pop (mean intervention population per intervention),
+#'   cum_nUncomp_end, cum_nUncomp_start.
 #' @param int_names Character vector. Intervention names (e.g. "CM", "ICCM").
 #' @param u_costs Named list of numeric unit costs, one entry per intervention
 #'   name (same names as `int_names`).
@@ -216,18 +216,18 @@ classify_district <- function(opt_combo, ref_combo) {
 #'
 #' @export
 compute_metrics <- function(data, int_names, u_costs) {
-  # vol_X already = SUM(nHost * deployed * coverage) / n_years from the DB
+  # {int}_pop = mean_over_seeds(SUM(nHost * deployed * coverage)) from the DB
   data[, avg_cost := 0]
   for (int in int_names) {
-    vol_col <- paste0("vol_", int)
-    if (vol_col %in% names(data)) {
-      data[, avg_cost := avg_cost + (get(vol_col) * u_costs[[int]])]
+    pop_col <- paste0(tolower(int), "_pop")
+    if (pop_col %in% names(data)) {
+      data[, avg_cost := avg_cost + (get(pop_col) * u_costs[[int]])]
     }
   }
 
   data[,
-    averted_period := cum_cases_end -
-      data.table$fifelse(is.na(cum_cases_start), 0, cum_cases_start)
+    averted_period := cum_nUncomp_end -
+      data.table$fifelse(is.na(cum_nUncomp_start), 0, cum_nUncomp_start)
   ]
 
   return(data)
@@ -398,7 +398,7 @@ prepare_facet_data <- function(opt_choices, data_tza1, intervention_cols) {
   plot_dt[,
     Nets := data.table$fcase(
       (deployed_int_IG2_Nets + deployed_int_PBO_Nets + deployed_int_STD_Nets) >
-        TRUE,
+        1L,
       "Multiple Nets",
       deployed_int_IG2_Nets == TRUE,
       "IG2 Nets",
@@ -517,8 +517,10 @@ make_tornado <- function(opt_res, scen_lookup) {
   tornado_dt[, cost_scaled := -total_cost * k]
 
   # Format labels using shared formatter
-  tornado_dt[, cost_label := paste0("$", format_number(abs(total_cost)))]
-  tornado_dt[, cases_label := format_number(abs(cases_averted))]
+  tornado_dt[, cost_label := format_large_number(abs(total_cost))]
+  tornado_dt[,
+    cases_label := format_large_number(abs(cases_averted), prefix = "")
+  ]
 
   # Vertical nudge to prevent bar overlap
   nudge <- 0.15
@@ -562,8 +564,8 @@ make_tornado <- function(opt_res, scen_lookup) {
       labels = function(x) {
         ifelse(
           x >= 0,
-          format_number(x),
-          paste0("$", format_number(abs(x) / k))
+          format_large_number(x, prefix = ""),
+          format_large_number(abs(x) / k)
         )
       },
       expand = ggplot2$expansion(mult = c(0.25, 0.2))
@@ -782,7 +784,10 @@ run_sensitivity <- function(
   if (!is.null(baseline_opt) && nrow(baseline_opt) > 0L) {
     actual <- sum(baseline_opt$avg_cost, na.rm = TRUE)
     attr(results, "actual_cost") <- actual
-    attr(results, "actual_cost_pct") <- round((actual / base_budget - 1) * 100, 1)
+    attr(results, "actual_cost_pct") <- round(
+      (actual / base_budget - 1) * 100,
+      1
+    )
   } else {
     attr(results, "actual_cost") <- base_budget
     attr(results, "actual_cost_pct") <- 0
@@ -791,101 +796,4 @@ run_sensitivity <- function(
   attr(results, "health_name") <- health_name
 
   results
-}
-
-
-#' Build the sensitivity bar chart from run_sensitivity() output
-#'
-#' @description Renders a vertical bar chart with one bar per active budget
-#'   step. Each bar shows total cases averted; x-axis labels show both the
-#'   percentage increment and the absolute budget in M USD.
-#'
-#' @param results List. Output of `run_sensitivity()`.
-#'
-#' @return A `ggplot` object, or a blank plot with a message if `results` is
-#'   empty.
-#'
-#' @export
-make_sensitivity_bar <- function(results) {
-  # Empty results — slider is at or below 0%
-  if (length(results) == 0L) {
-    return(
-      ggplot2$ggplot() +
-        ggplot2$geom_blank() +
-        ggplot2$annotate(
-          "text",
-          x = 0.5,
-          y = 0.5,
-          size = 5,
-          color = "gray50",
-          label = "Move the Budget Change slider above 0% to reveal bars"
-        ) +
-        ggplot2$theme_void()
-    )
-  }
-
-  # Smart label formatter
-  fmt_cases <- function(x) {
-    if (x >= 1e6) {
-      paste0(round(x / 1e6, 2), "M")
-    } else if (x >= 1e3) {
-      paste0(round(x / 1e3, 1), "K")
-    } else {
-      format(round(x), big.mark = ",")
-    }
-  }
-
-  df <- data.table$data.table(
-    idx = factor(seq_along(results)),
-    pct = sapply(results, `[[`, "pct"),
-    budget = sapply(results, `[[`, "budget"),
-    cases = sapply(results, `[[`, "cases_averted")
-  )
-  df[, cases_label := sapply(cases, fmt_cases)]
-  df[, x_label := paste0("+", pct, "%  |  $", round(budget / 1e6, 1), "M")]
-
-  ggplot2$ggplot(df, ggplot2$aes(x = idx, y = cases)) +
-    ggplot2$geom_col(fill = "#2980b9", color = "white", width = 0.45) +
-    ggplot2$geom_text(
-      ggplot2$aes(label = cases_label),
-      vjust = -0.5,
-      fontface = "bold",
-      size = 4.5,
-      color = "#1a252f"
-    ) +
-    ggplot2$scale_x_discrete(labels = df$x_label) +
-    ggplot2$scale_y_continuous(
-      labels = function(y) {
-        ifelse(
-          y >= 1e6,
-          paste0(round(y / 1e6, 1), "M"),
-          paste0(round(y / 1e3, 0), "K")
-        )
-      },
-      expand = ggplot2$expansion(mult = c(0.02, 0.22))
-    ) +
-    ggplot2$labs(
-      x = "Budget Step  (% increase vs BAU  |  total envelope)",
-      y = "Cases Averted vs Reference",
-      title = "Cases Averted at Each Budget Level",
-      subtitle = paste0(
-        nrow(df),
-        " of 7 steps shown — move slider right to reveal more"
-      )
-    ) +
-    ggplot2$theme_minimal(base_size = 13) +
-    ggplot2$theme(
-      plot.title = ggplot2$element_text(face = "bold", size = 14),
-      plot.subtitle = ggplot2$element_text(color = "gray50", size = 11),
-      axis.title = ggplot2$element_text(face = "bold", size = 12),
-      axis.text.x = ggplot2$element_text(
-        size = 10,
-        color = "gray30",
-        margin = ggplot2$margin(t = 6)
-      ),
-      axis.ticks.x = ggplot2$element_blank(),
-      panel.grid.major.x = ggplot2$element_blank(),
-      panel.grid.minor = ggplot2$element_blank(),
-      plot.margin = ggplot2$margin(12, 20, 16, 20)
-    )
 }

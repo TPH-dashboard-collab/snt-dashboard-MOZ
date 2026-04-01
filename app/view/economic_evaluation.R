@@ -6,7 +6,11 @@ box::use(
     `:=`, `.N`, `.SD`, `%chin%`,
     as.data.table, data.table, fifelse, fcase, merge.data.table, setorder, fwrite
   ],
-  ggplot2[annotate, ggplot, theme_void],
+  ggplot2[
+    aes, annotate, element_blank, element_text, geom_bar, geom_hline,
+    geom_label, ggplot, labs, scale_fill_manual, scale_y_continuous,
+    theme, theme_minimal, theme_void,
+  ],
   htmltools[HTML],
   leaflet[
     addLegend, addPolygons, addProviderTiles, colorFactor,
@@ -18,8 +22,10 @@ box::use(
     plotlyOutput, renderPlotly,
   ],
   rlang[`%||%`],
+  scales[comma],
   sf[st_as_sf, st_make_valid, st_union],
   shiny,
+  stats[setNames],
 )
 
 # fmt: skip
@@ -39,7 +45,7 @@ box::use(
   app/logic/core/logging[log_ns_builder, log_ns_fn],
   app/logic/core/utils[nvec_get_val],
   app/logic/data/get_filtered_data[add_intervention_combo_column],
-  app/logic/visualization/formatters,
+  app/logic/visualization/formatters[format_large_number],
 )
 
 # =============================================================================
@@ -59,7 +65,7 @@ box::use(
 # ----------------------------------------
 #   1. ee_data          – Pre-aggregated district summaries fetched from DB
 #                         (one row per scenario × district × EIR_CI; no year
-#                         dimension). Contains vol_*, cum_cases_*, deployed_int_*.
+#                         dimension). Contains {int}_pop, cum_nUncomp_*, deployed_int_*.
 #
 #   2. metrics_data     – Adds avg_cost (weighted by unit costs) and
 #                         averted_period (cases over the plan period) to each
@@ -160,8 +166,17 @@ ui <- function(id, use_custom_data = FALSE) {
       bslib$nav_panel(
         "Overview",
 
-        # Value boxes
-        shiny$uiOutput(ns("overview_value_boxes")),
+        # Summary bar charts
+        shiny$fluidRow(
+          shiny$column(
+            6,
+            shiny$plotOutput(ns("overview_budget_plot"), height = "220px")
+          ),
+          shiny$column(
+            6,
+            shiny$plotOutput(ns("overview_cases_plot"), height = "220px")
+          )
+        ),
 
         # Maps: NMB + Health optimizer
         shiny$fluidRow(
@@ -176,6 +191,7 @@ ui <- function(id, use_custom_data = FALSE) {
                   style = "color: #666; font-style: italic;"
                 ),
                 map_legend_html(),
+                shiny$uiOutput(ns("debug_nmb")),
                 leafletOutput(ns("map_ce"), height = "480px")
               )
             )
@@ -191,6 +207,7 @@ ui <- function(id, use_custom_data = FALSE) {
                   style = "color: #666; font-style: italic;"
                 ),
                 map_legend_html(),
+                shiny$uiOutput(ns("debug_averted")),
                 leafletOutput(ns("map_opt_assess"), height = "480px")
               )
             )
@@ -359,8 +376,8 @@ server <- function(
     # ── Step 1: Data fetching ─────────────────────────────────────────────────
     # Fetches pre-aggregated district summaries from the DB via
     # get_ee_district_summaries(). One row per (scenario_name, admin_2, EIR_CI).
-    # Columns include vol_<int> (annual avg intervention volume), cum_cases_start,
-    # cum_cases_end, and deployed_int_<int> flags.
+    # Columns include {int}_pop (intervention population), cum_nUncomp_start,
+    # cum_nUncomp_end, and deployed_int_<int> flags.
     # This is the ONLY DB fetch in the EE module — all downstream reactives
     # derive from this.
     # REVIEW: This might be a good place to run async.
@@ -440,8 +457,8 @@ server <- function(
     )
 
     # ── Step 2: Base metrics ──────────────────────────────────────────────────
-    # Adds avg_cost (sum of vol_<int> * unit_cost per intervention) and
-    # averted_period (cum_cases_end - cum_cases_start) to each row.
+    # Adds avg_cost (sum of {int}_pop * unit_cost per intervention) and
+    # averted_period (cum_nUncomp_end - cum_nUncomp_start) to each row.
     # Does NOT depend on reference plan or WTP — only re-runs when ee_data
     # or unit costs change.
     metrics_data <- shiny$reactive({
@@ -478,13 +495,12 @@ server <- function(
       if (input$reference_plan == "Custom") {
         "custom"
       } else {
-        nvec_get_val(unlist(unname(config::get("plans"))), input$reference_plan)
+        nvec_get_val(unlist(unname(config$get("plans"))), input$reference_plan)
       }
     })
 
     ref_data <- shiny$reactive({
       shiny$req(metrics_data(), reference_scenario())
-
       if (reference_scenario() == "custom") {
         shiny$req(variables$session_state$custom_data)
         # Custom data also includes the reference/counterfactual data. Exclude
@@ -496,10 +512,11 @@ server <- function(
 
         year_start <- variables$session_state$year_start
         year_end <- variables$session_state$year_end
-        n_years <- year_end - year_start + 1L
 
-        # Costs: same logic as DB query — SUM(nHost * deployed * coverage)
-        # across year range, divided by n_years, then multiply by unit cost
+        # Costs: same logic as calculate_intervention_costs —
+        # SUM(nHost * deployed * coverage) across year range (cumulative,
+        # no division by n_years), then multiply by unit cost.
+        # Average across seeds.
         dt <- cd[year >= year_start & year <= year_end]
         dt[, avg_cost := 0]
         for (int in int_names()) {
@@ -512,8 +529,12 @@ server <- function(
             ]
           }
         }
+        # First sum within each seed, then average across seeds
         costs <- dt[,
-          .(avg_cost = sum(avg_cost) / n_years),
+          .(avg_cost = sum(avg_cost)),
+          by = .(admin_2, EIR_CI, seed)
+        ][,
+          .(avg_cost = mean(avg_cost)),
           by = .(admin_2, EIR_CI)
         ]
 
@@ -595,7 +616,7 @@ server <- function(
     # Returns list(curr = base cost, env = adjusted envelope, adj_pct).
     budget_metrics <- shiny$reactive({
       shiny$req(ref_data(), budget_adj_d())
-      base_cost <- ref_data()[, sum(avg_cost, na.rm = TRUE)]
+      base_cost <- ref_data()[EIR_CI == "EIR_mean", sum(avg_cost, na.rm = TRUE)]
       compute_budget(
         base_cost = base_cost,
         budget_adj = budget_adj_d()
@@ -951,70 +972,160 @@ server <- function(
     # OUTPUT RENDERERS
     # ==========================================================================
 
-    # ── Overview tab: value boxes ─────────────────────────────────────────────
-    # Four KPI boxes: reference budget, active budget envelope, reference
-    # total cases, and optimised total cases with % reduction.
-    output$overview_value_boxes <- shiny$renderUI({
-      shiny$req(budget_metrics(), opt_res_averted(), metrics_data())
+    # ── Overview tab: summary bar charts ──────────────────────────────────────
+    # Two side-by-side bar charts replacing the old value boxes:
+    #   1) Budget comparison: reference, envelope, cost-optimized, health-optimized
+    #   2) Cases averted for both optimized plans
 
-      adj <- budget_metrics()$adj_pct
-      sign <- ifelse(adj >= 0, "+", "")
+    overview_summary_data <- shiny$reactive({
+      shiny$req(
+        budget_metrics(),
+        opt_res_averted(),
+        opt_res_NMB(),
+        ref_data()
+      )
 
-      ref_total <- ref_data()[
+      best_ce <- get_best_allocation(opt_res_NMB())
+      best_health <- get_best_allocation(opt_res_averted())
+
+      ref_budget <- budget_metrics()$curr
+      active_env <- budget_metrics()$env
+      cost_ce <- sum(best_ce$avg_cost, na.rm = TRUE)
+      cost_health <- sum(best_health$avg_cost, na.rm = TRUE)
+
+      ref_cases <- ref_data()[
         EIR_CI == "EIR_mean",
         sum(averted_period, na.rm = TRUE)
       ]
-      opt <- opt_res_averted()
-      cases_averted <- sum(opt$averted, na.rm = TRUE)
-      cases_opt <- ref_total - cases_averted
-      pct_red <- if (ref_total != 0) round(cases_averted / ref_total * 100, 1) else 0
+      averted_ce <- sum(best_ce$averted, na.rm = TRUE)
+      averted_health <- sum(best_health$averted, na.rm = TRUE)
 
-      shiny$fluidRow(
-        shiny$column(
-          3,
-          bslib$value_box(
-            title = "Reference Budget Envelope",
-            value = paste0(
-              formatters$format_number(round(budget_metrics()$curr)),
-              " $"
-            ),
-            theme = "primary"
-          )
-        ),
-        shiny$column(
-          3,
-          bslib$value_box(
-            title = paste0("Active Budget Envelope (", sign, adj, "%)"),
-            value = paste0(
-              formatters$format_number(round(budget_metrics()$env)),
-              " $"
-            ),
-            theme = "secondary"
-          )
-        ),
-        shiny$column(
-          3,
-          bslib$value_box(
-            title = paste0("Cases Reference (", input$reference_plan, ")"),
-            value = formatters$format_number(round(ref_total)),
-            theme = "primary"
-          )
-        ),
-        shiny$column(
-          3,
-          bslib$value_box(
-            title = paste0(
-              "Cases Optimal (",
-              formatters$format_number(round(cases_averted)),
-              " averted, ",
-              pct_red,
-              "%)"
-            ),
-            value = formatters$format_number(round(cases_opt)),
-            theme = "success"
-          )
-        )
+      list(
+        ref_budget = ref_budget,
+        active_env = active_env,
+        adj_pct = budget_metrics()$adj_pct,
+        cost_ce = cost_ce,
+        cost_health = cost_health,
+        ref_cases = ref_cases,
+        averted_ce = averted_ce,
+        averted_health = averted_health
       )
+    })
+
+    output$overview_budget_plot <- shiny$renderPlot({
+      d <- overview_summary_data()
+
+      # Build bars: always show reference + both plans;
+      # show envelope only if adjusted
+      labels <- c("Reference", "Cost-Effective\nPlan", "Health-Optimized\nPlan")
+      values <- c(d$ref_budget, d$cost_ce, d$cost_health)
+      fills <- c("#3575b5", "#e8973a", "#5ba85b")
+
+      if (d$adj_pct != 0) {
+        sign <- ifelse(d$adj_pct >= 0, "+", "")
+        labels <- c(
+          labels[1],
+          paste0("Envelope\n(", sign, d$adj_pct, "%)"),
+          labels[2:3]
+        )
+        values <- c(values[1], d$active_env, values[2:3])
+        fills <- c(fills[1], "#6c757d", fills[2:3])
+      }
+
+      plot_dt <- data.table(
+        label = factor(labels, levels = labels),
+        value = values,
+        fill = fills
+      )
+
+      ggplot(plot_dt, aes(x = label, y = value, fill = label)) +
+        geom_bar(stat = "identity", width = 0.6) +
+        geom_label(
+          aes(
+            label = format_large_number(round(value))
+          ),
+          colour = "white",
+          fontface = "bold",
+          vjust = -0.5,
+          size = 5
+        ) +
+        geom_hline(
+          yintercept = d$active_env,
+          linetype = "dashed",
+          color = "#6c757d",
+          linewidth = 0.5
+        ) +
+        scale_fill_manual(values = setNames(fills, labels)) +
+        scale_y_continuous(
+          labels = function(x) format_large_number(x),
+          expand = c(0.35, 0, 0.35, 0)
+        ) +
+        labs(title = "Budget Comparison", x = NULL, y = NULL) +
+        theme_minimal() +
+        theme(
+          text = element_text(size = 20),
+          legend.position = "none",
+          panel.grid.major.x = element_blank(),
+          plot.title = element_text(face = "bold", size = 13)
+        )
+    })
+
+    output$overview_cases_plot <- shiny$renderPlot({
+      d <- overview_summary_data()
+
+      pct_ce <- if (d$ref_cases != 0) {
+        round(d$averted_ce / d$ref_cases * 100, 1)
+      } else {
+        0
+      }
+      pct_health <- if (d$ref_cases != 0) {
+        round(d$averted_health / d$ref_cases * 100, 1)
+      } else {
+        0
+      }
+
+      labels <- c("Cost-Effective\nPlan", "Health-Optimized\nPlan")
+      values <- c(d$averted_ce, d$averted_health)
+      pcts <- c(pct_ce, pct_health)
+      fills <- c("#e8973a", "#5ba85b")
+
+      plot_dt <- data.table(
+        label = factor(labels, levels = labels),
+        value = values,
+        pct = pcts,
+        fill = fills
+      )
+
+      ggplot(plot_dt, aes(x = label, y = value, fill = label)) +
+        geom_bar(stat = "identity", width = 0.5) +
+        geom_label(
+          aes(
+            label = paste0(
+              format_large_number(value, prefix = ""),
+              prefix = "",
+              " (",
+              pct,
+              "%)"
+            )
+          ),
+          colour = "white",
+          fontface = "bold",
+          vjust = -0.5,
+          size = 5
+        ) +
+        scale_fill_manual(values = setNames(fills, labels)) +
+        scale_y_continuous(
+          labels = function(x) format_large_number(x, prefix = ""),
+          expand = c(0.35, 0, 0.35, 0)
+        ) +
+        labs(title = "Cases Averted vs Reference", x = NULL, y = NULL) +
+        theme_minimal() +
+        theme(
+          legend.position = "none",
+          panel.grid.major.x = element_blank(),
+          plot.title = element_text(face = "bold", size = 13),
+          text = element_text(size = 20)
+        )
     })
 
     # ── Overview tab: optimiser maps ──────────────────────────────────────────
@@ -1025,6 +1136,46 @@ server <- function(
     output$map_opt_assess <- renderLeaflet({
       render_optimized_leaflet("averted")
     })
+
+    # DEPRECATED: Remove, however we keep it for now.
+    ## # ── Debug summary boxes for optimizer maps ────────────────────────────────
+    ## render_debug_box <- function(opt_res_reactive) {
+    ##   shiny$req(opt_res_reactive(), ref_data(), budget_metrics())
+    ##   opt <- opt_res_reactive()
+    ##   shiny$req(nrow(opt) > 0)
+    ##   best <- get_best_allocation(opt)
+    ##   total_cost <- sum(best$avg_cost, na.rm = TRUE)
+    ##   total_averted <- sum(best$averted, na.rm = TRUE)
+    ##   ref_budget <- budget_metrics()$curr
+    ##   n_districts_ee <- ref_data()[EIR_CI == "EIR_mean", .N]
+    ##   shiny$div(
+    ##     style = paste0(
+    ##       "background:#fff3cd; border:1px solid #ffc107; ",
+    ##       "padding:6px 10px; margin-bottom:6px; font-size:12px;"
+    ##     ),
+    ##     shiny$strong("[DEBUG] "),
+    ##     paste0(
+    ##       "Opt cost: $",
+    ##       format(round(total_cost), big.mark = ","),
+    ##       " | Cases averted: ",
+    ##       format(round(total_averted), big.mark = ","),
+    ##       " | Ref budget: $",
+    ##       format(round(ref_budget), big.mark = ","),
+    ##       " | Ref plan: ",
+    ##       reference_scenario(),
+    ##       " | #districts(EIR_mean): ",
+    ##       n_districts_ee
+    ##     )
+    ##   )
+    ## }
+
+    ## output$debug_nmb <- shiny$renderUI({
+    ##   render_debug_box(opt_res_NMB)
+    ## })
+
+    ## output$debug_averted <- shiny$renderUI({
+    ##   render_debug_box(opt_res_averted)
+    ## })
 
     # ── Overview tab: tornado charts ──────────────────────────────────────────
     # Side-by-side tornado plots showing cost (left) vs cases averted (right)
@@ -1196,7 +1347,10 @@ server <- function(
       ) |>
         layout(
           title = list(
-            text = paste("Cases Averted at Each Budget Level \u2014", obj_label),
+            text = paste(
+              "Cases Averted at Each Budget Level \u2014",
+              obj_label
+            ),
             x = 0
           ),
           xaxis = list(

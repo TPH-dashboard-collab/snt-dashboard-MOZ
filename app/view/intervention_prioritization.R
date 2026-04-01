@@ -70,7 +70,7 @@ box::use(
 # Colour palette for rank groups (using dynamic palette function)
 RANK_GROUP_NAMES <- c("1-2", "3-4", "5-6", "7-8", "9-10")
 RANK_COLORS <- setNames(
-  rev(create_blue_palette(5)),  # Reversed: darkest = highest priority
+  rev(create_blue_palette(5)), # Reversed: darkest = highest priority
 
   RANK_GROUP_NAMES
 )
@@ -82,8 +82,8 @@ RANK_COLORS <- setNames(
 #' @return A shiny tagList with styled placeholder
 #' @keywords internal
 create_analysis_placeholder <- function(
-height = "400px",
-message = NULL
+  height = "400px",
+  message = NULL
 ) {
   default_message <- paste(
     "Analysis not available for the current settings.",
@@ -92,7 +92,9 @@ message = NULL
 
   shiny$div(
     style = paste0(
-      "height: ", height, "; ",
+      "height: ",
+      height,
+      "; ",
       "display: flex; ",
       "flex-direction: column; ",
       "align-items: center; ",
@@ -226,7 +228,9 @@ server <- function(
 
     # Validate toggle_enabled parameter
     if (is.null(toggle_enabled)) {
-      stop("toggle_enabled parameter is required for intervention_prioritization module")
+      stop(
+        "toggle_enabled parameter is required for intervention_prioritization module"
+      )
     }
 
     # ========================================================================
@@ -268,7 +272,11 @@ server <- function(
 
     # Active rank column names (consolidated)
     rank_columns <- shiny$reactive({
-      suffix <- if (input$metric_filter == "impact_per_1000") "_per_1000" else "_cases"
+      suffix <- if (input$metric_filter == "impact_per_1000") {
+        "_per_1000"
+      } else {
+        "_cases"
+      }
       list(
         group = paste0("rank_group", suffix),
         num = paste0("rank_num", suffix),
@@ -324,8 +332,16 @@ server <- function(
         agg_level = variables$session_state$agg_level,
         region = variables$session_state$region_selected,
         strata = variables$session_state$strata_selected,
-        year_start = if (!is.null(year_start)) year_start() else variables$session_state$year_start,
-        year_end = if (!is.null(year_end)) year_end() else variables$session_state$year_end
+        year_start = if (!is.null(year_start)) {
+          year_start()
+        } else {
+          variables$session_state$year_start
+        },
+        year_end = if (!is.null(year_end)) {
+          year_end()
+        } else {
+          variables$session_state$year_end
+        }
       )
     })
 
@@ -353,7 +369,10 @@ server <- function(
         variables$session_state$scenario_selected
       )
 
-      log_debug("Fetching prioritization data...", namespace = log_ns_fn(log_ns))
+      log_debug(
+        "Fetching prioritization data...",
+        namespace = log_ns_fn(log_ns)
+      )
 
       if (use_custom_data) {
         # Panel 3: Start with custom_data but need to fetch counterfactuals
@@ -388,7 +407,11 @@ server <- function(
         unique_patterns <- unique(custom_scenario_dt[, ..interv_cols])
 
         log_debug(
-          paste("Found", nrow(unique_patterns), "unique intervention patterns in custom scenario"),
+          paste(
+            "Found",
+            nrow(unique_patterns),
+            "unique intervention patterns in custom scenario"
+          ),
           namespace = log_ns_fn(log_ns)
         )
 
@@ -407,7 +430,11 @@ server <- function(
         all_combos <- unique(all_combos)
 
         log_debug(
-          paste("Generated", length(all_combos), "total intervention combinations for counterfactuals"),
+          paste(
+            "Generated",
+            length(all_combos),
+            "total intervention combinations for counterfactuals"
+          ),
           namespace = log_ns_fn(log_ns)
         )
 
@@ -444,18 +471,26 @@ server <- function(
         )
 
         log_debug(
-          paste("Counterfactual data from Customized plan:",
-                nrow(counterfactual_dt), "rows"),
+          paste(
+            "Counterfactual data from Customized plan:",
+            nrow(counterfactual_dt),
+            "rows"
+          ),
           namespace = log_ns_fn(log_ns)
         )
 
         # Step 5: Combine custom scenario (from custom_data) with counterfactuals
         # Note: We use custom_scenario_dt which has scenario_name = "custom"
-        dt <- rbindlist(list(custom_scenario_dt, counterfactual_dt), fill = TRUE)
+        dt <- rbindlist(
+          list(custom_scenario_dt, counterfactual_dt),
+          fill = TRUE
+        )
 
         log_debug(
-          paste("Combined data - plans:",
-                paste(unique(dt$plan), collapse = ", ")),
+          paste(
+            "Combined data - plans:",
+            paste(unique(dt$plan), collapse = ", ")
+          ),
           namespace = log_ns_fn(log_ns)
         )
       } else {
@@ -485,10 +520,15 @@ server <- function(
         }
 
         log_debug(
-          paste("Scenario filters:",
-                paste(names(scenario_filters), "=",
-                      sapply(scenario_filters, function(x) paste(x, collapse = ",")),
-                      collapse = "; ")),
+          paste(
+            "Scenario filters:",
+            paste(
+              names(scenario_filters),
+              "=",
+              sapply(scenario_filters, function(x) paste(x, collapse = ",")),
+              collapse = "; "
+            )
+          ),
           namespace = log_ns_fn(log_ns)
         )
 
@@ -535,8 +575,10 @@ server <- function(
         selected_plan <- unique(scenario_dt$plan)
         if (length(selected_plan) > 1) {
           log_debug(
-            paste("Warning: Multiple plans found in scenario:",
-                  paste(selected_plan, collapse = ", ")),
+            paste(
+              "Warning: Multiple plans found in scenario:",
+              paste(selected_plan, collapse = ", ")
+            ),
             namespace = log_ns_fn(log_ns)
           )
           selected_plan <- selected_plan[1]
@@ -561,7 +603,11 @@ server <- function(
         all_combos <- unique(all_combos)
 
         log_debug(
-          paste("Generated", length(all_combos), "total intervention combinations"),
+          paste(
+            "Generated",
+            length(all_combos),
+            "total intervention combinations"
+          ),
           namespace = log_ns_fn(log_ns)
         )
 
@@ -600,13 +646,18 @@ server <- function(
         )
 
         log_debug(
-          paste("Counterfactual data from Customized plan:",
-                nrow(counterfactual_dt), "rows"),
+          paste(
+            "Counterfactual data from Customized plan:",
+            nrow(counterfactual_dt),
+            "rows"
+          ),
           namespace = log_ns_fn(log_ns)
         )
         log_debug(
-          paste("Unique scenario_names in counterfactual data:",
-                paste(unique(counterfactual_dt$scenario_name), collapse = ", ")),
+          paste(
+            "Unique scenario_names in counterfactual data:",
+            paste(unique(counterfactual_dt$scenario_name), collapse = ", ")
+          ),
           namespace = log_ns_fn(log_ns)
         )
 
@@ -615,8 +666,10 @@ server <- function(
 
         # Debug: Log combined data
         log_debug(
-          paste("Combined data - plans:",
-                paste(unique(dt$plan), collapse = ", ")),
+          paste(
+            "Combined data - plans:",
+            paste(unique(dt$plan), collapse = ", ")
+          ),
           namespace = log_ns_fn(log_ns)
         )
       }
@@ -630,21 +683,34 @@ server <- function(
 
     # Generate strata_all from unique combinations in the data
     strata_all <- shiny$reactive({
-      shiny$req(prioritization_data(), variables$session_state$scenario_selected)
+      shiny$req(
+        prioritization_data(),
+        variables$session_state$scenario_selected
+      )
       dt <- prioritization_data()
 
       # Get unique combinations of admin_2, age_group, scenario_name
       # Filter to only include the selected scenario (not counterfactuals)
       # For panel 3 (use_custom_data=TRUE), the scenario is "custom" not scenario_selected
-      target_scenario <- if (use_custom_data) "custom" else variables$session_state$scenario_selected
+      target_scenario <- if (use_custom_data) {
+        "custom"
+      } else {
+        variables$session_state$scenario_selected
+      }
       strata <- unique(dt[
         scenario_name == target_scenario,
         .(admin_2, age_group, scenario_name)
       ])
 
       log_debug(
-        paste("Generated strata_all:", nrow(strata), "combinations",
-              "(target scenario:", target_scenario, ")"),
+        paste(
+          "Generated strata_all:",
+          nrow(strata),
+          "combinations",
+          "(target scenario:",
+          target_scenario,
+          ")"
+        ),
         namespace = log_ns_fn(log_ns)
       )
       strata
@@ -669,11 +735,16 @@ server <- function(
       shiny$req(prioritization_data())
       dt <- prioritization_data()
       # Filter to selected scenario to get the correct plan
-      scenario_dt <- dt[scenario_name == variables$session_state$scenario_selected]
+      scenario_dt <- dt[
+        scenario_name == variables$session_state$scenario_selected
+      ]
       plans <- unique(scenario_dt$plan)
       if (length(plans) > 1) {
         log_debug(
-          paste("Multiple plans in selected scenario:", paste(plans, collapse = ", ")),
+          paste(
+            "Multiple plans in selected scenario:",
+            paste(plans, collapse = ", ")
+          ),
           namespace = log_ns_fn(log_ns)
         )
       }
@@ -735,13 +806,21 @@ server <- function(
 
         # For panel 3 (custom data), use "custom" as target scenario
         # For panel 2, use the selected scenario name
-        target_scenario <- if (use_custom_data) "custom" else variables$session_state$scenario_selected
+        target_scenario <- if (use_custom_data) {
+          "custom"
+        } else {
+          variables$session_state$scenario_selected
+        }
         current_plan <- selected_plan()
         strata_plan <- strata_all()[scenario_name == target_scenario]
 
         log_debug(
-          paste("Using plan for baseline filtering:", if (is.null(current_plan)) "NULL (panel 3 mode)" else current_plan,
-                "| target scenario:", target_scenario),
+          paste(
+            "Using plan for baseline filtering:",
+            if (is.null(current_plan)) "NULL (panel 3 mode)" else current_plan,
+            "| target scenario:",
+            target_scenario
+          ),
           namespace = log_ns_fn(log_ns)
         )
 
@@ -774,7 +853,11 @@ server <- function(
               max_year <- year_end_filter()
               data_for_impact <- data_for_impact[year <= max_year]
               log_debug(
-                paste("Filtered data to years <=", max_year, "for cumulative impact"),
+                paste(
+                  "Filtered data to years <=",
+                  max_year,
+                  "for cumulative impact"
+                ),
                 namespace = log_ns_fn(log_ns)
               )
             }
@@ -800,8 +883,11 @@ server <- function(
                   log_debug(
                     paste(
                       "Error calculating impact for",
-                      x$admin_2, x$age_group, x$scenario_name,
-                      ":", e$message
+                      x$admin_2,
+                      x$age_group,
+                      x$scenario_name,
+                      ":",
+                      e$message
                     ),
                     namespace = log_ns_fn(log_ns)
                   )
@@ -813,10 +899,16 @@ server <- function(
                 log_debug(
                   paste(
                     "First strata result:",
-                    if (is.null(result)) "NULL" else paste(
-                      nrow(result), "rows,",
-                      ncol(result), "cols"
-                    )
+                    if (is.null(result)) {
+                      "NULL"
+                    } else {
+                      paste(
+                        nrow(result),
+                        "rows,",
+                        ncol(result),
+                        "cols"
+                      )
+                    }
                   ),
                   namespace = log_ns_fn(log_ns)
                 )
@@ -828,19 +920,26 @@ server <- function(
             log_debug(
               paste(
                 "Impact calculation result:",
-                nrow(impacts_dt), "rows,",
-                ncol(impacts_dt), "columns"
+                nrow(impacts_dt),
+                "rows,",
+                ncol(impacts_dt),
+                "columns"
               ),
               namespace = log_ns_fn(log_ns)
             )
             log_debug(
-              paste("Impact columns:", paste(names(impacts_dt), collapse = ", ")),
+              paste(
+                "Impact columns:",
+                paste(names(impacts_dt), collapse = ", ")
+              ),
               namespace = log_ns_fn(log_ns)
             )
             if (nrow(impacts_dt) > 0) {
               log_debug(
-                paste("Unique scenario_names in impacts:",
-                      paste(unique(impacts_dt$scenario_name), collapse = ", ")),
+                paste(
+                  "Unique scenario_names in impacts:",
+                  paste(unique(impacts_dt$scenario_name), collapse = ", ")
+                ),
                 namespace = log_ns_fn(log_ns)
               )
             }
@@ -864,8 +963,7 @@ server <- function(
             setnames(impacts_dt, "value", "mean_impact")
 
             # strip deployed_int_
-            impacts_dt[
-              ,
+            impacts_dt[,
               intervention := gsub(
                 "^(deployed_int_)",
                 "",
@@ -925,23 +1023,36 @@ server <- function(
       )
       dt <- impacts_reactive()
       # For panel 3, impacts have scenario_name = "custom", not scenario_selected
-      scenario_sel <- if (use_custom_data) "custom" else variables$session_state$scenario_selected
+      scenario_sel <- if (use_custom_data) {
+        "custom"
+      } else {
+        variables$session_state$scenario_selected
+      }
       age_sel <- age_filter()
 
       log_debug(
-        paste("ranks_filtered - impacts rows:", nrow(dt),
-              "| target scenario:", scenario_sel,
-              "| age_filter:", age_sel),
+        paste(
+          "ranks_filtered - impacts rows:",
+          nrow(dt),
+          "| target scenario:",
+          scenario_sel,
+          "| age_filter:",
+          age_sel
+        ),
         namespace = log_ns_fn(log_ns)
       )
       log_debug(
-        paste("ranks_filtered - unique scenarios in impacts:",
-              paste(unique(dt$scenario_name), collapse = ", ")),
+        paste(
+          "ranks_filtered - unique scenarios in impacts:",
+          paste(unique(dt$scenario_name), collapse = ", ")
+        ),
         namespace = log_ns_fn(log_ns)
       )
       log_debug(
-        paste("ranks_filtered - unique age_groups in impacts:",
-              paste(unique(dt$age_group), collapse = ", ")),
+        paste(
+          "ranks_filtered - unique age_groups in impacts:",
+          paste(unique(dt$age_group), collapse = ", ")
+        ),
         namespace = log_ns_fn(log_ns)
       )
 
@@ -952,8 +1063,10 @@ server <- function(
       )
       if (nrow(filtered) > 0) {
         log_debug(
-          paste("ranks_filtered - interventions:",
-                paste(unique(filtered$intervention), collapse = ", ")),
+          paste(
+            "ranks_filtered - interventions:",
+            paste(unique(filtered$intervention), collapse = ", ")
+          ),
           namespace = log_ns_fn(log_ns)
         )
       }
@@ -975,8 +1088,12 @@ server <- function(
       }
 
       log_debug(
-        paste("ranks_intervention - intervention_filter:", interv_sel,
-              "| ranks_filtered rows:", nrow(dt)),
+        paste(
+          "ranks_intervention - intervention_filter:",
+          interv_sel,
+          "| ranks_filtered rows:",
+          nrow(dt)
+        ),
         namespace = log_ns_fn(log_ns)
       )
       filtered <- dt[intervention == interv_sel]
@@ -1006,21 +1123,35 @@ server <- function(
       # Get age and scenario directly from session state
       # For panel 3, impacts have scenario_name = "custom"
       age_sel <- variables$session_state$age_group
-      scenario_sel <- if (use_custom_data) "custom" else variables$session_state$scenario_selected
+      scenario_sel <- if (use_custom_data) {
+        "custom"
+      } else {
+        variables$session_state$scenario_selected
+      }
 
       log_debug(
         paste(
           "intervention_filter_ui - impacts:",
-          if (is.null(impacts_data)) "NULL" else paste(nrow(impacts_data), "rows"),
-          "| age:", if (is.null(age_sel)) "NULL" else age_sel,
-          "| scenario:", if (is.null(scenario_sel)) "NULL" else scenario_sel
+          if (is.null(impacts_data)) {
+            "NULL"
+          } else {
+            paste(nrow(impacts_data), "rows")
+          },
+          "| age:",
+          if (is.null(age_sel)) "NULL" else age_sel,
+          "| scenario:",
+          if (is.null(scenario_sel)) "NULL" else scenario_sel
         ),
         namespace = log_ns_fn(log_ns)
       )
 
       # If no data yet, show loading state
-      if (is.null(impacts_data) || nrow(impacts_data) == 0 ||
-          is.null(age_sel) || is.null(scenario_sel)) {
+      if (
+        is.null(impacts_data) ||
+          nrow(impacts_data) == 0 ||
+          is.null(age_sel) ||
+          is.null(scenario_sel)
+      ) {
         log_debug(
           "intervention_filter_ui - showing loading state",
           namespace = log_ns_fn(log_ns)
@@ -1047,7 +1178,8 @@ server <- function(
       log_debug(
         paste(
           "intervention_filter_ui - choices:",
-          length(choices), "-",
+          length(choices),
+          "-",
           paste(choices, collapse = ", ")
         ),
         namespace = log_ns_fn(log_ns)
@@ -1073,7 +1205,9 @@ server <- function(
       log_debug(
         paste(
           "intervention_filter_ui - RENDERING selectInput with",
-          length(choices), "choices, selecting:", choices[1]
+          length(choices),
+          "choices, selecting:",
+          choices[1]
         ),
         namespace = log_ns_fn(log_ns)
       )
@@ -1090,8 +1224,16 @@ server <- function(
     shiny$observe({
       val <- input$intervention_filter
       log_debug(
-        paste("intervention_filter INPUT CHANGED to:",
-              if (is.null(val)) "NULL" else if (val == "") "EMPTY" else val),
+        paste(
+          "intervention_filter INPUT CHANGED to:",
+          if (is.null(val)) {
+            "NULL"
+          } else if (val == "") {
+            "EMPTY"
+          } else {
+            val
+          }
+        ),
         namespace = log_ns_fn(log_ns)
       )
     })
@@ -1128,7 +1270,11 @@ server <- function(
       )
 
       # For panel 3, impacts have scenario_name = "custom", not scenario_selected
-      target_scenario <- if (use_custom_data) "custom" else variables$session_state$scenario_selected
+      target_scenario <- if (use_custom_data) {
+        "custom"
+      } else {
+        variables$session_state$scenario_selected
+      }
 
       # Filter by selected scenario + age - data.table aggregation
       data <- impacts_reactive()[
@@ -1200,7 +1346,11 @@ server <- function(
       shiny$req(variables$session_state$scenario_selected)
 
       # Handle case where intervention_filter is not set yet
-      if (is.null(input$intervention_filter) || length(input$intervention_filter) == 0 || input$intervention_filter == "") {
+      if (
+        is.null(input$intervention_filter) ||
+          length(input$intervention_filter) == 0 ||
+          input$intervention_filter == ""
+      ) {
         return(shiny$tags$p(
           style = "color:#666; margin-bottom: 10px;",
           "Loading..."
@@ -1223,14 +1373,22 @@ server <- function(
     })
 
     output$map_title <- shiny$renderUI({
-      if (is.null(input$intervention_filter) || length(input$intervention_filter) == 0 || input$intervention_filter == "") {
+      if (
+        is.null(input$intervention_filter) ||
+          length(input$intervention_filter) == 0 ||
+          input$intervention_filter == ""
+      ) {
         return("Priority Map")
       }
       paste("Priority Map -", input$intervention_filter)
     })
 
     output$chart_title <- shiny$renderUI({
-      if (is.null(input$intervention_filter) || length(input$intervention_filter) == 0 || input$intervention_filter == "") {
+      if (
+        is.null(input$intervention_filter) ||
+          length(input$intervention_filter) == 0 ||
+          input$intervention_filter == ""
+      ) {
         return("Ranking")
       }
       paste("Ranking -", input$intervention_filter)
@@ -1256,7 +1414,10 @@ server <- function(
       shiny$req(ranks_intervention())
 
       log_debug(
-        paste("map_explore rendering - intervention_filter:", input$intervention_filter),
+        paste(
+          "map_explore rendering - intervention_filter:",
+          input$intervention_filter
+        ),
         namespace = log_ns_fn(log_ns)
       )
 
@@ -1377,7 +1538,10 @@ server <- function(
       shiny$req(ranks_intervention())
 
       log_debug(
-        paste("plot_ranking rendering - intervention_filter:", input$intervention_filter),
+        paste(
+          "plot_ranking rendering - intervention_filter:",
+          input$intervention_filter
+        ),
         namespace = log_ns_fn(log_ns)
       )
 
