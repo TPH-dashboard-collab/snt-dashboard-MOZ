@@ -810,7 +810,7 @@ SELECT DISTINCT scenario_name, admin_1, admin_2, risk_stratum, age_group, year,
       )$count
 
       # Expected number of indexes
-      expected_indexes <- 11
+      expected_indexes <- 9
 
       if (existing_indexes == expected_indexes) {
         log_info(
@@ -891,22 +891,22 @@ SELECT DISTINCT scenario_name, admin_1, admin_2, risk_stratum, age_group, year,
           )
           log_debug("Created idx_admin_combo", namespace = log_ns_fn(log_ns))
 
-          dbExecute(
-            con,
-            "CREATE INDEX IF NOT EXISTS idx_ee_summary
-         ON data(age_group, year, scenario_name, plan, admin_2, EIR_CI, seed);"
-          )
-          log_debug("Created idx_ee_summary", namespace = log_ns_fn(log_ns))
+         ##  dbExecute(
+         ##    con,
+         ##    "CREATE INDEX IF NOT EXISTS idx_ee_summary
+         ## ON data(age_group, year, scenario_name, plan, admin_2, EIR_CI, seed);"
+         ##  )
+         ##  log_debug("Created idx_ee_summary", namespace = log_ns_fn(log_ns))
 
-          dbExecute(
-            con,
-            "CREATE INDEX IF NOT EXISTS idx_counterfactual
-         ON data(plan, age_group, admin_2);"
-          )
-          log_debug(
-            "Created idx_counterfactual",
-            namespace = log_ns_fn(log_ns)
-          )
+         ##  dbExecute(
+         ##    con,
+         ##    "CREATE INDEX IF NOT EXISTS idx_counterfactual
+         ## ON data(plan, age_group, admin_2);"
+         ##  )
+         ##  log_debug(
+         ##    "Created idx_counterfactual",
+         ##    namespace = log_ns_fn(log_ns)
+         ##  )
 
           # Update query planner statistics
           log_debug(
