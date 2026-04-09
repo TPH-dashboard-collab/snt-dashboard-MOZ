@@ -8,9 +8,9 @@ default:
   rhino_log_file: !expr Sys.getenv("RHINO_LOG_LEVEL", NA)
 
   # Country identity
-  country_name: "Example country"
-  dashboard_title: "Example Dashboard"
-  dashboard_year_range: "2026-2030"
+  country_name: "Mozambique"
+  dashboard_title: "Mozambique Malaria Dashboard"
+  dashboard_year_range: "2026-2033"
   # Swiss TPH logo, can potentially be changed to something else.
   logo_path: "static/images/logosmall.png"
 
@@ -29,13 +29,13 @@ default:
 
   # Display names for administrative levels
   admin_mapping:
-    admin_1: "Region"
+    admin_1: "Province"
     admin_2: "District"
 
   # Aggregation level choices shown in sidebar
   aggregation_levels:
     - "National"
-    - "Regional"
+    - "Provincial"
     - "Risk Strata"
 
   # Plan type - plan name - scenario ID mapping
