@@ -1,0 +1,185 @@
+# Country specific application configuration
+
+# Everything needs to be provided, no missing key value pairs allowed.
+
+default:
+  # Application log level, parsed from system's env vars.
+  rhino_log_level: !expr Sys.getenv("RHINO_LOG_LEVEL", "INFO")
+  rhino_log_file: !expr Sys.getenv("RHINO_LOG_LEVEL", NA)
+
+  # Country identity
+  country_name: "Example country"
+  dashboard_title: "Example Dashboard"
+  dashboard_year_range: "2026-2030"
+  # Swiss TPH logo, can potentially be changed to something else.
+  logo_path: "static/images/logosmall.png"
+
+  # Data sources
+  db_type: "SQLite"
+  db_path: "app/data/input_data.sqlite"
+  shapefile_dir: "app/data/shapefiles/"
+
+  # HTML file is displayed in the assumptions panel
+  calibration_html: "static/html/my_html_file.html"
+
+  # Data column conversion rules
+  conversion_rules:
+    "^active_int_": !expr as.logical
+    "^deployed_int_": !expr as.logical
+
+  # Display names for administrative levels
+  admin_mapping:
+    admin_1: "Region"
+    admin_2: "District"
+
+  # Aggregation level choices shown in sidebar
+  aggregation_levels:
+    - "National"
+    - "Regional"
+    - "Risk Strata"
+
+  # Plan type - plan name - scenario ID mapping
+  plans:
+    references:
+        BAU: "bau"
+    scenarios:
+        NSP: "nsp"
+
+  # Display names for scenarios
+  scenario_mapping:
+    bau: "BAU"
+    nsp: "NSP"
+    custom: "Customized Scenario"
+
+  # Impact metric column-to-display-name mapping
+  impact_mapping:
+    cum_nUncomp: "Cases"
+    cum_tUncomp: "Reported Cases"
+    cum_nSevere: "Severe Cases"
+    cum_tSevere: "Reported Severe Cases"
+    cum_expectedDirectDeaths: "Deaths"
+
+  # Risk strata configuration
+  risk_strata:
+    # Ordered from lowest to highest risk
+    levels:
+      - "Very Low"
+      - "Low"
+      - "Moderate"
+      - "High"
+    # Upper threshold for each level (prevalence rate)
+    # "High" applies when prevalenceRate > highest threshold (0.11)
+    # 20-3-2026 TODO we might want to have different classificator rather than prevalenceRate
+    thresholds:
+      "Very Low": 0.019
+      "Low": 0.033
+      "Moderate": 0.11  # Risk strata classification criteria
+    # Strata considered "high risk" for persistence analysis
+    high_risk:
+      - "High"
+      - "Moderate"
+    # Display colors for visualizations
+    colors:
+      "Very Low": "#26a69a"
+      "Low": "#d4e157"
+      "Moderate": "#ffb300"
+      "High": "#d32f2f"
+
+  # Default intervention unit costs (USD, per person covered)
+  cost_defaults:
+    CM: 8
+    ICCM: 4.5
+    IG2_Nets: 2
+    IPTSc: 2
+    IRS: 4.5
+    LSM: 1.5
+    PBO_Nets: 1.6
+    PMC: 2
+    SMC: 4
+    STD_Nets: 1
+    Vaccine: 7
+
+  # Intervention mutual exclusivity rules
+  # Only one intervention per group can be active in a district
+  intervention_exclusivity:
+    case_management:
+      - "deployed_int_CM"
+      - "deployed_int_ICCM"
+    net_types:
+      - "deployed_int_STD_Nets"
+      - "deployed_int_PBO_Nets"
+      - "deployed_int_IG2_Nets"
+    preventive_chemo:
+      - "deployed_int_PMC"
+      - "deployed_int_SMC"
+
+  # Intervention priorities for conflict resolution (higher = keep)
+  intervention_priorities:
+    # Case management - highest priority
+    deployed_int_CM: 10
+    deployed_int_ICCM: 9
+    # Vector control - nets (all equal priority)
+    deployed_int_STD_Nets: 8
+    deployed_int_PBO_Nets: 8
+    deployed_int_IG2_Nets: 8
+    # Vector control - other
+    deployed_int_IRS: 7
+    deployed_int_LSM: 6
+    # Chemoprevention
+    deployed_int_IPTSc: 7
+    deployed_int_PMC: 6
+    deployed_int_SMC: 6
+    # Vaccine - lowest priority
+    deployed_int_Vaccine: 5
+
+  # Feature flags: toggle entire sections on/off
+  # features:
+  #   PANEL_NAME:
+  #       CATEGORY:
+  #           enabled: true <- This determines if the feature and any subfeatures is used at all
+  #           SUBFEATURE1: true
+  #           SUBFEATURE2: false
+  #           ...
+  features:
+    panel_2:
+        value_boxes:
+            enabled: true
+        intervention_map:
+            enabled: true
+        impact_analysis:
+            enabled: true
+        costs:
+            enabled: true
+        intervention_prioritization:
+            enabled: true
+        risk_strata:
+            enabled: true
+        scenario_customizer:
+            enabled: false
+        economic_evaluation:
+            enabled: false
+    panel_3:
+        value_boxes:
+            enabled: true
+        intervention_map:
+            enabled: true
+        impact_analysis:
+            enabled: true
+        costs:
+            enabled: true
+        intervention_prioritization:
+            enabled: true
+        risk_strata:
+            enabled: true
+        scenario_customizer:
+            enabled: true
+        economic_evaluation:
+            enabled: true
+
+# You can create any other profile. Each will inherit from the default one, so
+# no need to repeat the settings.
+dev:
+  rhino_log_level: !expr Sys.getenv("RHINO_LOG_LEVEL", "DEBUG")
+
+shinyapps:
+  rhino_log_level: !expr Sys.getenv("RHINO_LOG_LEVEL", "INFO")
