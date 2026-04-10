@@ -153,7 +153,7 @@ default:
         intervention_prioritization:
             enabled: true
         risk_strata:
-            enabled: true
+            enabled: false
         scenario_customizer:
             enabled: false
         economic_evaluation:
