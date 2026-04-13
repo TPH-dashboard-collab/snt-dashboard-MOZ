@@ -815,34 +815,17 @@ server <- function(id, variables, country_map, panel_config, ...) {
       shiny$bindEvent(input$update)
 
     shiny$observe({
-      variables$set_unit_costs(
-        list(
-          CM = input$cost_cm,
-          ICCM = input$cost_iccm,
-          IG2_Nets = input$cost_ig2_nets,
-          IPTSc = input$cost_iptsc,
-          IRS = input$cost_irs,
-          LSM = input$cost_lsm,
-          PBO_Nets = input$cost_pbo_nets,
-          PMC = input$cost_pmc,
-          SMC = input$cost_smc,
-          STD_Nets = input$cost_std_nets,
-          Vaccine = input$cost_vaccine
-        )
-      )
+      cost_names <- names(config$get("cost_defaults"))
+      unit_costs <- lapply(cost_names, function(name) {
+        input[[paste0("cost_", tolower(name))]]
+      })
+      names(unit_costs) <- cost_names
+      variables$set_unit_costs(unit_costs)
     }) |>
       shiny$bindEvent(
-        input$cost_cm,
-        input$cost_iccm,
-        input$cost_ig2_nets,
-        input$cost_iptsc,
-        input$cost_irs,
-        input$cost_lsm,
-        input$cost_pbo_nets,
-        input$cost_pmc,
-        input$cost_smc,
-        input$cost_std_nets,
-        input$cost_vaccine
+        lapply(names(config$get("cost_defaults")), function(name) {
+          input[[paste0("cost_", tolower(name))]]
+        })
       )
 
     shiny$observe({
