@@ -423,7 +423,7 @@ server <- function(
           names(target_combo) <- interv_cols
           pattern_combos <- generate_counterfactual_combos(
             target = target_combo,
-            base_interventions = c("deployed_int_CM", "deployed_int_ICCM")
+            base_interventions = config$get("base_interventions")
           )
           all_combos <- c(all_combos, pattern_combos)
         }
@@ -439,11 +439,11 @@ server <- function(
           namespace = log_ns_fn(log_ns)
         )
 
-        # Step 4: Fetch counterfactual scenarios from "Customized" plan
+        # Step 4: Fetch counterfactual scenarios from full factorial plan
         counterfactual_filters <- list(
           age_group = variables$session_state$age_group,
           admin_2 = districts,
-          plan = "Customized"
+          plan = config$get("plans")$full_factorial
         )
         if (
           variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
@@ -473,7 +473,7 @@ server <- function(
 
         log_debug(
           paste(
-            "Counterfactual data from Customized plan:",
+            "Counterfactual data from full factorial plan:",
             nrow(counterfactual_dt),
             "rows"
           ),
@@ -596,7 +596,7 @@ server <- function(
           names(target_combo) <- interv_cols
           pattern_combos <- generate_counterfactual_combos(
             target = target_combo,
-            base_interventions = c("deployed_int_CM", "deployed_int_ICCM")
+            base_interventions = config$get("base_interventions")
           )
           all_combos <- c(all_combos, pattern_combos)
         }
@@ -612,13 +612,13 @@ server <- function(
           namespace = log_ns_fn(log_ns)
         )
 
-        # Step 4: Fetch counterfactual scenarios from "Customized" plan
-        # Counterfactuals are stored in plan = "Customized" with full factorial
+        # Step 4: Fetch counterfactual scenarios from full factorial plan
+        # Counterfactuals are stored with all intervention combinations
         # NOTE: NO year filter - impact calculation needs all years for cumulative metrics
         counterfactual_filters <- list(
           age_group = variables$session_state$age_group,
           admin_2 = districts,
-          plan = "Customized"
+          plan = config$get("plans")$full_factorial
         )
         if (
           variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
@@ -648,7 +648,7 @@ server <- function(
 
         log_debug(
           paste(
-            "Counterfactual data from Customized plan:",
+            "Counterfactual data from full factorial plan:",
             nrow(counterfactual_dt),
             "rows"
           ),
@@ -662,7 +662,7 @@ server <- function(
           namespace = log_ns_fn(log_ns)
         )
 
-        # Step 5: Combine baseline (selected plan) with counterfactuals (Customized)
+        # Step 5: Combine baseline (selected plan) with counterfactuals (full factorial)
         dt <- rbindlist(list(scenario_dt, counterfactual_dt), fill = TRUE)
 
         # Debug: Log combined data
@@ -721,7 +721,7 @@ server <- function(
     # For panel 3 (custom data), return NULL since:
     # - The "custom" scenario is already filtered by scenario_name
     # - Baseline data doesn't need plan filtering
-    # - Counterfactuals use "Customized" plan by default in per_interv_impact
+    # - Counterfactuals use plans$full_factorial from config in per_interv_impact
     selected_plan <- shiny$reactive({
       # Panel 3: Don't filter by plan for baseline - scenario_name is sufficient
       if (use_custom_data) {
@@ -878,6 +878,7 @@ server <- function(
                   ),
                   interv = variables$intervention_cols,
                   plan = current_plan,
+                  base_interventions = config$get("base_interventions"),
                   log_ns = if (i == 1) log_ns_fn(log_ns) else NULL
                 ),
                 error = function(e) {

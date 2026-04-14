@@ -1,4 +1,5 @@
 box::use(
+  config,
   checkmate[qtest],
   data.table[
     `:=`,
@@ -25,7 +26,7 @@ box::use(
 #'   (`TRUE` = present, `FALSE` = absent). Names must correspond
 #'   to intervention column names in the data.
 #' @param base_interventions Character vector of intervention column names that
-#'   cannot be switched off (default: CM and ICCM as base minimum).
+#'   cannot be switched off. Must be provided (from config$get("base_interventions")).
 #'
 #' @return A named list of logical vectors. Each element is a copy of
 #'   `x` with one active intervention set to `FALSE`. The list
@@ -35,7 +36,7 @@ box::use(
 #' @examples
 #' \dontrun{
 #' x <- c(deployed_int_CM = TRUE, deployed_int_IRS = FALSE, deployed_int_SMC = TRUE)
-#' counterfactual_lgc(x)
+#' counterfactual_lgc(x, base_interventions = c("deployed_int_CM"))
 #' # Returns a list of length 1:
 #' #   $deployed_int_SMC: CM = TRUE, IRS = FALSE, SMC = FALSE
 #' # CM is not included as it's a base intervention
@@ -45,7 +46,7 @@ box::use(
 #' @noRd
 counterfactual_lgc <- function(
   x,
-  base_interventions = c("deployed_int_CM", "deployed_int_ICCM")
+  base_interventions
 ) {
   stopifnot(
     "x must be a named logical vector" = qtest(x, "B+") &&
@@ -87,12 +88,7 @@ counterfactual_lgc <- function(
 filter_lgc <- function(
   df,
   target,
-  interv = c(
-    "deployed_int_LSM", "deployed_int_IRS", "deployed_int_IPTSc",
-    "deployed_int_Vaccine", "deployed_int_CM", "deployed_int_ICCM",
-    "deployed_int_STD_Nets", "deployed_int_PBO_Nets", "deployed_int_IG2_Nets",
-    "deployed_int_SMC", "deployed_int_PMC"
-  )
+  interv
 ) {
   stopifnot(
     "df must be a data.table" = qtest(df, "D+"),
@@ -142,9 +138,9 @@ if (nrow(df) == 0) {
 #' @param keep_col Optional character vector of additional columns to retain
 #'   in the output. Default is `NULL`.
 #' @param plan Character string specifying the plan for the baseline scenario.
-#'   Counterfactuals are always fetched from "Customized" plan.
+#'   Counterfactuals are fetched from the full factorial plan (configured in config.yml).
 #' @param counterfactual_plan Character string specifying the plan for
-#'   counterfactuals. Defaults to "Customized".
+#'   counterfactuals. Defaults to config$get("plans")$full_factorial.
 #' @param log_ns Optional logging namespace for debug output.
 #'
 #' @return A data.table in long format with one row per active intervention,
@@ -172,15 +168,11 @@ per_interv_impact <- function(
     scenario_name = "nsp"
   ),
   indicator = c("cum_nUncomp"),
-  interv = c(
-    "deployed_int_LSM", "deployed_int_IRS", "deployed_int_IPTSc",
-    "deployed_int_Vaccine", "deployed_int_CM", "deployed_int_ICCM",
-    "deployed_int_STD_Nets", "deployed_int_PBO_Nets", "deployed_int_IG2_Nets",
-    "deployed_int_SMC", "deployed_int_PMC"
-  ),
+  interv,
   keep_col = NULL,
   plan = NULL,
-  counterfactual_plan = "Customized",
+  counterfactual_plan = config$get("plans")$full_factorial,
+  base_interventions,
   log_ns = NULL
 ) {
   # --- Input validation ---
@@ -244,7 +236,7 @@ per_interv_impact <- function(
   # --- Step 3: Generate counterfactual patterns ---
   cf_patterns <- counterfactual_lgc(
     target,
-    base_interventions = c("deployed_int_CM", "deployed_int_ICCM")
+    base_interventions = base_interventions
   )
 
   if (length(cf_patterns) == 0) {
@@ -262,7 +254,7 @@ per_interv_impact <- function(
     )
   }
 
-  # --- Step 4: Get counterfactual data (from Customized plan) ---
+  # --- Step 4: Get counterfactual data (from full factorial plan) ---
   cf_dt <- df[admin_2 == admin_2_val & age_group == age_group_val]
   if (!is.null(counterfactual_plan) && "plan" %in% names(cf_dt)) {
     cf_dt <- cf_dt[plan == counterfactual_plan]

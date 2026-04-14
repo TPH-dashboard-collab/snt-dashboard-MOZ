@@ -7,12 +7,12 @@ box::use(
 #'
 #' For a named logical vector of active interventions, generates counterfactual
 #' combinations by switching off one active intervention at a time.
-#' CM and iCCM cannot be switched off (base minimum interventions).
+#' Base interventions (configured in config.yml) cannot be switched off.
 #'
 #' @param target Named logical vector of intervention booleans where
 #'   TRUE indicates the intervention is deployed.
 #' @param base_interventions Character vector of intervention column names that
-#'   cannot be switched off (default: CM and iCCM as base minimum).
+#'   cannot be switched off. Must be provided (typically from config$get("base_interventions")).
 #'
 #' @return A named list of named logical vectors. The first element ("original")
 #'   contains the input combination. Subsequent elements are counterfactuals
@@ -23,12 +23,11 @@ box::use(
 #' \dontrun{
 #' target <- c(
 #'   deployed_int_CM = TRUE,
-#'   deployed_int_ICCM = FALSE,
 #'   deployed_int_IRS = TRUE,
 #'   deployed_int_STD_Nets = TRUE,
 #'   deployed_int_Vaccine = FALSE
 #' )
-#' combos <- generate_counterfactual_combos(target)
+#' combos <- generate_counterfactual_combos(target, base_interventions = c("deployed_int_CM"))
 #' # Returns list with:
 #' # $original: all original values
 #' # $deployed_int_IRS: IRS set to FALSE
@@ -38,7 +37,7 @@ box::use(
 #' @export
 generate_counterfactual_combos <- function(
   target,
-  base_interventions = c("deployed_int_CM", "deployed_int_ICCM")
+  base_interventions
 ) {
   stopifnot(
     "target must be a named logical vector" = qtest(target, "B+") &&
