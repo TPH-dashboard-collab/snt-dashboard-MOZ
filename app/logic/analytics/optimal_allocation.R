@@ -27,6 +27,97 @@ box::use(
 #   - ggplot2 for tornado charts
 #   - sf / leaflet for map rendering
 
+# INTERVENTION GROUP SPECIFICATIONS
+# Each group defines: columns to check, and a labeling function
+INTERVENTION_GROUPS <- list(
+  `CM & ICCM` = list(
+    cols = c("deployed_int_CM", "deployed_int_ICCM"),
+    label_fn = function(cm, iccm) data.table$fcase(
+      cm & iccm, "CM + iCCM",
+      cm, "CM Only",
+      iccm, "iCCM Only",
+      default = "None"
+    )
+  ),
+  `PMC & SMC` = list(
+    cols = c("deployed_int_PMC", "deployed_int_SMC"),
+    label_fn = function(pmc, smc) data.table$fcase(
+      pmc & smc, "PMC + SMC",
+      pmc, "PMC Only",
+      smc, "SMC Only",
+      default = "None"
+    )
+  ),
+  Nets = list(
+    cols = c(
+      "deployed_int_STD_Nets", "deployed_int_PBO_Nets", "deployed_int_IG2_Nets",
+      "deployed_int_PBO", "deployed_int_IG2"
+    ),
+    label_fn = function(std, pbo_nets, ig2_nets, pbo, ig2) {
+      # Handle both naming conventions (deployed_int_IG2 and deployed_int_IG2_Nets)
+      pbo_any <- pbo_nets | pbo
+      ig2_any <- ig2_nets | ig2
+      net_count <- as.integer(std) + as.integer(pbo_any) + as.integer(ig2_any)
+      data.table$fcase(
+        net_count > 1L, "Multiple Nets",
+        ig2_any, "IG2 Nets",
+        pbo_any, "PBO Nets",
+        std, "STD Nets",
+        default = "None"
+      )
+    }
+  ),
+  LSM = list(
+    cols = "deployed_int_LSM",
+    label_fn = function(x) data.table$fifelse(x, "LSM", "None")
+  ),
+  Vaccine = list(
+    cols = "deployed_int_Vaccine",
+    label_fn = function(x) data.table$fifelse(x, "Vaccine", "None")
+  ),
+  IPTSc = list(
+    cols = "deployed_int_IPTSc",
+    label_fn = function(x) data.table$fifelse(x, "IPTSc", "None")
+  ),
+  IRS = list(
+    cols = "deployed_int_IRS",
+    label_fn = function(x) data.table$fifelse(x, "IRS", "None")
+  )
+)
+
+#' Apply intervention grouping to plot data
+#'
+#' @param dt data.table with deployed_int_* columns (modified in place)
+#' @param group_specs Named list of group specifications
+#' @return Character vector of group names that were added
+apply_intervention_groups <- function(dt, group_specs = INTERVENTION_GROUPS) {
+  existing_cols <- names(dt)
+  active_groups <- character(0)
+
+  for (group_name in names(group_specs)) {
+    spec <- group_specs[[group_name]]
+    required_cols <- spec$cols
+
+    # Check if ANY of the required columns exist
+    present_cols <- intersect(required_cols, existing_cols)
+    if (length(present_cols) == 0) next
+
+    # Add missing columns as FALSE
+    missing_cols <- setdiff(required_cols, existing_cols)
+    for (col in missing_cols) {
+      dt[, (col) := FALSE]
+    }
+
+    # Apply the label function using column values
+    col_values <- lapply(required_cols, function(col) dt[[col]])
+    dt[, (group_name) := do.call(spec$label_fn, col_values)]
+
+    active_groups <- c(active_groups, group_name)
+  }
+
+  active_groups
+}
+
 # THE OPTIMISATION FUNCTION
 
 #' Solve a budget-constrained resource allocation problem using linear
@@ -370,69 +461,10 @@ prepare_facet_data <- function(opt_choices, data_tza1, intervention_cols) {
     all.x = TRUE
   )
 
-  # Derive intervention group status labels
-  plot_dt[,
-    `CM & ICCM` := data.table$fcase(
-      deployed_int_CM == TRUE & deployed_int_ICCM == TRUE,
-      "CM + iCCM",
-      deployed_int_CM == TRUE,
-      "CM Only",
-      deployed_int_ICCM == TRUE,
-      "iCCM Only",
-      default = "None"
-    )
-  ]
-
-  plot_dt[,
-    `PMC & SMC` := data.table$fcase(
-      deployed_int_PMC == TRUE & deployed_int_SMC == TRUE,
-      "PMC + SMC",
-      deployed_int_PMC == TRUE,
-      "PMC Only",
-      deployed_int_SMC == TRUE,
-      "SMC Only",
-      default = "None"
-    )
-  ]
-
-  plot_dt[,
-    Nets := data.table$fcase(
-      (deployed_int_IG2_Nets + deployed_int_PBO_Nets + deployed_int_STD_Nets) >
-        1L,
-      "Multiple Nets",
-      deployed_int_IG2_Nets == TRUE,
-      "IG2 Nets",
-      deployed_int_PBO_Nets == TRUE,
-      "PBO Nets",
-      deployed_int_STD_Nets == TRUE,
-      "STD Nets",
-      default = "None"
-    )
-  ]
-
-  plot_dt[, LSM := data.table$fifelse(deployed_int_LSM == TRUE, "LSM", "None")]
-  plot_dt[,
-    Vaccine := data.table$fifelse(
-      deployed_int_Vaccine == TRUE,
-      "Vaccine",
-      "None"
-    )
-  ]
-  plot_dt[,
-    IPTSc := data.table$fifelse(deployed_int_IPTSc == TRUE, "IPTSc", "None")
-  ]
-  plot_dt[, IRS := data.table$fifelse(deployed_int_IRS == TRUE, "IRS", "None")]
+  # Apply intervention groupings (adds group columns to plot_dt in place)
+  groups <- apply_intervention_groups(plot_dt)
 
   # Pivot to long format: one row per district × intervention group
-  groups <- c(
-    "CM & ICCM",
-    "PMC & SMC",
-    "Nets",
-    "LSM",
-    "Vaccine",
-    "IPTSc",
-    "IRS"
-  )
   keep <- c("admin_2", groups)
   long <- data.table$melt(
     plot_dt[, ..keep],
