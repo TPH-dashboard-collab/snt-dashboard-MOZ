@@ -62,7 +62,10 @@ ui <- function(id, panel_config) {
             # District/region selection. Only shown if aggregation level is
             # regional.
             shiny$conditionalPanel(
-              condition = "input.agg_level == 'Regional'",
+              condition = sprintf(
+                "input.agg_level == '%s'",
+                config$get("aggregation_levels")[2]
+              ),
               ns = ns,
               shinyWidgets$pickerInput(
                 inputId = ns("region_selected"),
@@ -348,7 +351,7 @@ server <- function(id, variables, country_map, panel_config, ...) {
       # NOTE 2025-11-12: I think these checks should never evaluate to TRUE
       #   because agg_level initializes with "National". However, we leave it in
       #   as a Good Practice.
-      if (variables$session_state$agg_level == "Regional") {
+      if (variables$session_state$agg_level == config$get("aggregation_levels")[2]) {
         shiny$req(variables$session_state$region_selected)
         shiny$req(length(input$region_selected) != 0)
       }
@@ -1021,7 +1024,7 @@ server <- function(id, variables, country_map, panel_config, ...) {
             )
           )
           if (
-            variables$session_state$agg_level == "Regional" &&
+            variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
               length(variables$session_state$region_selected) > 0
           ) {
             filters <- c(
@@ -1302,7 +1305,7 @@ server <- function(id, variables, country_map, panel_config, ...) {
               year = variables$session_state$year_end
             )
             if (
-              variables$session_state$agg_level == "Regional" &&
+              variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
                 length(variables$session_state$region_selected) > 0
             ) {
               filters <- c(
@@ -1427,7 +1430,7 @@ server <- function(id, variables, country_map, panel_config, ...) {
             year = variables$session_state$year_end
           )
           if (
-            variables$session_state$agg_level == "Regional" &&
+            variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
               length(variables$session_state$region_selected) > 0
           ) {
             filters <- c(

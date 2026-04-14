@@ -1,5 +1,6 @@
 # fmt: skip
 box::use(
+  config,
   DT[DTOutput, datatable, formatPercentage, renderDT],
   bslib,
   config,
@@ -181,7 +182,7 @@ server <- function(
         plan = unname(unlist(lapply(config$get("plans"), names)))
       )
       if (
-        variables$session_state$agg_level == "Regional" &&
+        variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
           length(variables$session_state$region_selected) > 0
       ) {
         filters <- c(

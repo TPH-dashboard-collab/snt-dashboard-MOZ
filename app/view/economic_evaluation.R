@@ -1,5 +1,6 @@
 # fmt: skip
 box::use(
+  config,
   bslib,
   config,
   data.table[
@@ -401,7 +402,7 @@ server <- function(
 
       filters <- list()
       if (
-        variables$session_state$agg_level == "Regional" &&
+        variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
           length(variables$session_state$region_selected) > 0
       ) {
         filters$admin_1 <- variables$session_state$region_selected

@@ -1,5 +1,6 @@
 # fmt: skip
 box::use(
+  config,
   bslib,
   data.table[
     `:=`,
@@ -445,7 +446,7 @@ server <- function(
           plan = "Customized"
         )
         if (
-          variables$session_state$agg_level == "Regional" &&
+          variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
             length(variables$session_state$region_selected) > 0
         ) {
           counterfactual_filters <- c(
@@ -501,7 +502,7 @@ server <- function(
           scenario_name = variables$session_state$scenario_selected
         )
         if (
-          variables$session_state$agg_level == "Regional" &&
+          variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
             length(variables$session_state$region_selected) > 0
         ) {
           scenario_filters <- c(
@@ -620,7 +621,7 @@ server <- function(
           plan = "Customized"
         )
         if (
-          variables$session_state$agg_level == "Regional" &&
+          variables$session_state$agg_level == config$get("aggregation_levels")[2] &&
             length(variables$session_state$region_selected) > 0
         ) {
           counterfactual_filters <- c(

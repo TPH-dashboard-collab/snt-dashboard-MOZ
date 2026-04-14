@@ -154,7 +154,7 @@ server <- function(id, variables, trigger, ...) {
       admins <- variables$admins
       agg_level <- variables$session_state$agg_level
 
-      if (agg_level == "Regional") {
+      if (agg_level == config$get("aggregation_levels")[2]) {
         region_selected <- variables$session_state$region_selected
         if (length(region_selected) > 0) {
           admins <- admins[admin_1 %in% region_selected]
@@ -230,7 +230,7 @@ server <- function(id, variables, trigger, ...) {
       if (exists("scenario_name") && !is.null(scenario_name)) {
         filters <- c(filters, list(scenario_name = scenario_name))
       }
-      if (agg_level == "Regional" && length(region_selected) > 0) {
+      if (agg_level == config$get("aggregation_levels")[2] && length(region_selected) > 0) {
         filters <- c(filters, list(admin_1 = region_selected))
       }
       if (agg_level == "Risk Strata" && length(strata_selected) > 0) {
@@ -343,7 +343,7 @@ server <- function(id, variables, trigger, ...) {
         age_group = age_group,
         year = variables$session_state$year_end
       )
-      if (agg_level == "Regional" && length(region_selected) > 0) {
+      if (agg_level == config$get("aggregation_levels")[2] && length(region_selected) > 0) {
         filters <- c(filters, list(admin_1 = region_selected))
       }
       if (agg_level == "Risk Strata" && length(strata_selected) > 0) {
