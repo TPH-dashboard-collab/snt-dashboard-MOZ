@@ -51,6 +51,9 @@ default:
       NSP_6: "nsp-6"
       NSP_8: "nsp-8"
       NSP_9: "nsp-9"
+    # Plan name containing full factorial intervention combinations
+    # Used by intervention prioritization to calculate marginal impacts
+    full_factorial: "custom"
 
   # Display names for scenarios
   # Key: scenario_name column value, Value: display name
@@ -137,6 +140,11 @@ default:
     deployed_int_SMC: 6
     # Vaccine - lowest priority
     deployed_int_Vaccine: 5
+
+  # Base interventions that cannot be switched off in counterfactual analysis
+  # These are considered minimum required interventions for all scenarios
+  base_interventions:
+    - "deployed_int_CM"
 
   # Feature flags
   features:
