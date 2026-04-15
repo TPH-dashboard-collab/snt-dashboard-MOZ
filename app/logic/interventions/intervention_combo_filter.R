@@ -41,9 +41,7 @@ generate_counterfactual_combos <- function(
 ) {
   stopifnot(
     "target must be a named logical vector" = qtest(target, "B+") &&
-      !is.null(names(target))
-  )
-  stopifnot(
+      !is.null(names(target)),
     "base_interventions must be a character vector" = qtest(
       base_interventions,
       "S*"
